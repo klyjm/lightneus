@@ -4,8 +4,10 @@ import cv2 as cv
 import numpy as np
 import os
 from glob import glob
+
+import trimesh
 from tqdm import tqdm
-from icecream import ic
+# from icecream import ic
 from scipy.spatial.transform import Rotation as Rot
 from scipy.spatial.transform import Slerp
 
@@ -76,7 +78,7 @@ class Dataset:
             self.pose_all.append(torch.from_numpy(pose).float())
 
         self.images = torch.from_numpy(self.images_np.astype(np.float32)).cpu()  # [n_images, H, W, 3]
-        self.preprocess_images_le2()
+        # self.preprocess_images_le2()
         self.masks  = torch.from_numpy(self.masks_np.astype(np.float32)).cpu()   # [n_images, H, W, 3]
         self.intrinsics_all = torch.stack(self.intrinsics_all).to(self.device)   # [n_images, 4, 4]
         self.intrinsics_all_inv = torch.inverse(self.intrinsics_all)  # [n_images, 4, 4]
@@ -108,7 +110,8 @@ class Dataset:
         g= 2.0 # Autogain unknown for ct1a, estimates from 1 to 3
         gamma = 2.2 # gamma correction, generally constant
         k = 2.5 # decay power from emitted light
-        f = 767.45 # average of fx and fy, TODO compute differently in different directions
+        # f = 767.45 # average of fx and fy, TODO compute differently in different directions
+        f = 542.7
         h = 1080
         w = 1350
         # (252,0) pixel coord varies between 160<alpha<170
@@ -128,12 +131,12 @@ class Dataset:
         dists = np.linalg.norm(dists, axis=2)
         alpha = np.arctan2(dists, f)
         Le = np.power(np.cos(alpha), k)
-        cv.imwrite("./Le.png", Le)
-        cv.imwrite("./le_img.png", self.images[0] / torch.Tensor(Le).unsqueeze(-1).detach().cpu())
+        cv.imwrite("./Le.png", Le * 255)
+        cv.imwrite("./le_img.png", (self.images[0] / torch.Tensor(Le).unsqueeze(-1).detach().cpu()).numpy())
 
         # Compute normalized images
         Le = torch.Tensor(Le).unsqueeze(-1).detach().cpu()
-        self.images = (torch.pow(self.images, gamma) / (Le * g))
+        self.images = torch.pow((torch.pow(self.images, gamma) / (Le * g)), 1 / gamma)
 
 
     def preprocess_images_le(self):

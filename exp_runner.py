@@ -9,7 +9,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from shutil import copyfile
-from icecream import ic
+# from icecream import ic
 from tqdm import tqdm
 from pyhocon import ConfigFactory
 from models.dataset import Dataset
@@ -139,13 +139,21 @@ class Runner:
             pbar.set_description(f'PSNR: {psnr}')
 
             eikonal_loss = gradient_error
-
-            mask_loss = F.binary_cross_entropy(weight_sum.clip(1e-3, 1.0 - 1e-3), mask)
+            if self.mask_weight > 0.0:
+                mask_loss = F.binary_cross_entropy(weight_sum.clip(1e-3, 1.0 - 1e-3), mask)
+            else:
+                mask_loss = torch.zeros_like(color_fine_loss)
 
             loss = color_fine_loss +\
                    eikonal_loss * self.igr_weight +\
                    mask_loss * self.mask_weight
-
+            try:
+                if bool(loss.isnan().cpu().numpy()):
+                    print('color_fine_loss', color_fine_loss)
+                    print('eikonal_loss', eikonal_loss)
+                    print('mask_loss', mask_loss)
+            except:
+                pass
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 import logging
 import mcubes
-from icecream import ic
+# from icecream import ic
 
 
 def extract_fields(bound_min, bound_max, resolution, query_func):
@@ -223,7 +223,7 @@ class NeuSRenderer:
 
         gradients = sdf_network.gradient(pts).squeeze()
         sampled_color = color_network(pts, gradients, dirs, feature_vector).reshape(batch_size, n_samples, 3)
-        sampled_color = sampled_color/mid_z_vals[..., :, None] # 1/t^2 light decay dependency from lightneus
+        sampled_color = sampled_color/(mid_z_vals[..., :, None].pow(2).clamp(1e-10)) # 1/t^2 light decay dependency from lightneus
 
         inv_s = deviation_network(torch.zeros([1, 3]))[:, :1].clip(1e-6, 1e6)           # Single parameter
         inv_s = inv_s.expand(batch_size * n_samples, 1)
@@ -266,6 +266,9 @@ class NeuSRenderer:
         if background_rgb is not None:    # Fixed background, usually black
             color = color + background_rgb * (1.0 - weights_sum)
 
+        if bool(np.isnan(color.detach().cpu().numpy().max())):
+            print("Get")
+            pass
         # Eikonal loss
         gradient_error = (torch.linalg.norm(gradients.reshape(batch_size, n_samples, 3), ord=2,
                                             dim=-1) - 1.0) ** 2
